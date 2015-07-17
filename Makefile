@@ -1,4 +1,4 @@
-CFLAGS := -mtune=native -Os -Wall
+CFLAGS := -mtune=native -O3 -Wall
 LDLIBS := -lpthread
 
 taxi: taxi.o

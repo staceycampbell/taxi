@@ -3,14 +3,36 @@
 #include <stdlib.h>
 #include <unistd.h>
 
-#define LIMIT 350		// max is 1625 before 32 bit overflow (log2(LIMIT^3))
+#define T_COUNT 10
+#define LIMIT 500		// max is 1290 before 32 bit overflow (log2(LIMIT^3))
 
-static pthread_mutex_t Mutex = PTHREAD_MUTEX_INITIALIZER;
+typedef struct taxi_t {
+	unsigned int a;
+	unsigned int b;
+	unsigned int c;
+	unsigned int d;
+	unsigned long long solution;
+} taxi_t;
+
 static pthread_mutex_t MutexPrint = PTHREAD_MUTEX_INITIALIZER;
-static int ThreadCount;
 
-static inline unsigned int
-Cubed(unsigned int a)
+static taxi_t *Taxi;
+static int TaxiCount;
+static int TaxiSize;
+
+static int
+CmpTaxi(const void *p1, const void *p2)
+{
+	const taxi_t *t1, *t2;
+
+	t1 = p1;
+	t2 = p2;
+
+	return (t1->solution > t2->solution) - (t1->solution < t2->solution);
+}
+
+static inline unsigned long long
+Cubed(unsigned long long a)
 {
 	return a * a * a;
 }
@@ -19,7 +41,7 @@ static int
 Check(unsigned int a, unsigned int b, unsigned int c, unsigned int d)
 {
 	unsigned int good;
-	unsigned int a_cubed, b_cubed, c_cubed, d_cubed, x, y;
+	unsigned long long a_cubed, b_cubed, c_cubed, d_cubed, x, y;
 
 	a_cubed = Cubed(a);
 	b_cubed = Cubed(b);
@@ -33,7 +55,17 @@ Check(unsigned int a, unsigned int b, unsigned int c, unsigned int d)
 	if (good)
 	{
 		pthread_mutex_lock(&MutexPrint);
-		printf("%4u^3 + %4u^3 == %4u^3 + %4u^3 == %10u\n", a, b, c, d, x);
+		Taxi[TaxiCount].a = a;
+		Taxi[TaxiCount].b = b;
+		Taxi[TaxiCount].c = c;
+		Taxi[TaxiCount].d = d;
+		Taxi[TaxiCount].solution = x;
+		++TaxiCount;
+		if (TaxiCount == TaxiSize)
+		{
+			TaxiSize += 100;
+			Taxi = (taxi_t *)realloc(Taxi, TaxiSize * sizeof(taxi_t));
+		}
 		pthread_mutex_unlock(&MutexPrint);
 	}
 
@@ -51,45 +83,44 @@ LoopThread(void *arg)
 			for (b = a; b < LIMIT; ++b)
 				if (a != c && a != d && b != c && b != d)
 					(void)Check(a, b, c, d);
-	pthread_mutex_lock(&Mutex);
-	--ThreadCount;
-	pthread_mutex_unlock(&Mutex);
-
 	return 0;
 }
-
-#define T_COUNT 3
 
 int
 main(void)
 {
-	unsigned int a, ready;
-	unsigned int arg[LIMIT];
-	pthread_t last_loop_thread = 0;
+	unsigned int i;
+	unsigned int a, t;
+	unsigned int arg[T_COUNT];
+	pthread_t loop_thread[T_COUNT];
 
-	pthread_mutex_init(&Mutex, NULL);
 	pthread_mutex_init(&MutexPrint, NULL);
 
-	ThreadCount = 0;
+	TaxiCount = 0;
+	TaxiSize = 10;
+	Taxi = (taxi_t *)malloc(TaxiSize * sizeof(taxi_t));
 
 	a = 1;
 	while (a < LIMIT)
 	{
-		pthread_mutex_lock(&Mutex);
-		ready = ThreadCount < T_COUNT;
-		pthread_mutex_unlock(&Mutex);
-		if (ready)
+		for (t = 0; t < T_COUNT; ++t)
 		{
-			pthread_mutex_lock(&Mutex);
-			++ThreadCount;
-			pthread_mutex_unlock(&Mutex);
-			arg[a] = a;
-			pthread_create(&last_loop_thread, NULL, LoopThread, &arg[a]);
+			fprintf(stderr, ".");
+			arg[t] = a;
+			pthread_create(&loop_thread[t], NULL, LoopThread, &arg[t]);
 			++a;
 		}
-		else
-			pthread_join(last_loop_thread, 0);
+		for (t = 0; t < T_COUNT; ++t)
+			pthread_join(loop_thread[t], 0);
 	}
+
+	fprintf(stderr, "\n");
+
+	qsort(Taxi, TaxiCount, sizeof(taxi_t), CmpTaxi);
+	for (i = 0; i < TaxiCount; ++i)
+		printf("Taxi(%4d): %4u^3 + %4u^3 == %4u^3 + %4u^3 == %10llu%s\n", i + 1, Taxi[i].a, Taxi[i].b, Taxi[i].c, Taxi[i].d, Taxi[i].solution,
+		    i > 0 && Taxi[i].solution == Taxi[i - 1].solution ? "(!)" : "");
+		
 
 	return 0;
 }
