@@ -3,8 +3,8 @@
 #include <stdlib.h>
 #include <unistd.h>
 
-#define T_COUNT 10
-#define LIMIT 500		// max is 1290 before 32 bit overflow (log2(LIMIT^3))
+#define T_COUNT 4 // thread count
+#define LIMIT 300
 
 typedef struct taxi_t {
 	unsigned int a;
