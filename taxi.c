@@ -3,8 +3,8 @@
 #include <stdlib.h>
 #include <unistd.h>
 
-#define T_COUNT 8 // thread count
-#define LIMIT 1600
+#define T_COUNT 5 // thread count
+#define LIMIT 500
 
 typedef struct taxi_t {
 	unsigned int a;
@@ -14,7 +14,7 @@ typedef struct taxi_t {
 	unsigned long long solution;
 } taxi_t;
 
-static pthread_mutex_t MutexPrint = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t Mutex = PTHREAD_MUTEX_INITIALIZER;
 
 static taxi_t *Taxi;
 static int TaxiCount;
@@ -54,7 +54,7 @@ Check(unsigned int a, unsigned int b, unsigned int c, unsigned int d)
 	good = x == y;
 	if (good)
 	{
-		pthread_mutex_lock(&MutexPrint);
+		pthread_mutex_lock(&Mutex);
 		Taxi[TaxiCount].a = a;
 		Taxi[TaxiCount].b = b;
 		Taxi[TaxiCount].c = c;
@@ -66,7 +66,7 @@ Check(unsigned int a, unsigned int b, unsigned int c, unsigned int d)
 			TaxiSize += 100;
 			Taxi = (taxi_t *)realloc(Taxi, TaxiSize * sizeof(taxi_t));
 		}
-		pthread_mutex_unlock(&MutexPrint);
+		pthread_mutex_unlock(&Mutex);
 	}
 
 	return good;
@@ -75,30 +75,37 @@ Check(unsigned int a, unsigned int b, unsigned int c, unsigned int d)
 static void *
 LoopThread(void *arg)
 {
-	unsigned int a, b, c, d;
+	unsigned int a, b, c, d, a_start, c_start;
 
 	a = *(unsigned int *)arg;
-	for (c = a + 1; c < LIMIT; ++c)
-		for (d = c; d < LIMIT; ++d)
-			for (b = a; b < LIMIT; ++b)
-				if (a != c && a != d && b != c && b != d)
-					(void)Check(a, b, c, d);
+	a_start = a + 1;
+	c_start = a + 2;
+	for (b = a_start; b < LIMIT; ++b)
+		for (c = c_start; c < LIMIT; ++c)
+			for (d = c + 1; d < LIMIT; ++d)
+				(void)Check(a, b, c, d);
 	return 0;
 }
 
 int
 main(void)
 {
-	unsigned int i;
-	unsigned int a, t;
+	unsigned int i, a, t;
+	unsigned int check_size;
 	unsigned int arg[T_COUNT];
 	pthread_t loop_thread[T_COUNT];
+	static const unsigned long long valid[] = {
+		1729, 4104, 13832, 20683, 32832, 39312, 40033, 46683, 64232, 65728, 110656, 110808,
+		134379, 149389, 165464, 171288, 195841, 216027, 216125, 262656, 314496, 320264, 327763,
+		373464, 402597, 439101, 443889, 513000, 513856, 515375, 525824, 558441, 593047, 684019,
+		704977
+	};
 
-	pthread_mutex_init(&MutexPrint, NULL);
+	pthread_mutex_init(&Mutex, NULL);
 
 	TaxiCount = 0;
 	TaxiSize = 10;
-	Taxi = (taxi_t *)malloc(TaxiSize * sizeof(taxi_t));
+	Taxi = (taxi_t *) malloc(TaxiSize * sizeof(taxi_t));
 
 	a = 1;
 	while (a < LIMIT)
@@ -117,10 +124,22 @@ main(void)
 	fprintf(stderr, "\n");
 
 	qsort(Taxi, TaxiCount, sizeof(taxi_t), CmpTaxi);
+	i = 0;
+	if (sizeof(valid) / sizeof(valid[0]) > LIMIT)
+		check_size = LIMIT;
+	else
+		check_size = sizeof(valid) / sizeof(valid[0]);
+	while (i < check_size && Taxi[i].solution == valid[i])
+		++i;
+	if (i < check_size)
+	{
+		fprintf(stderr, "Sequence bad at position %u (you have %llu, should be %llu)\n", i, Taxi[i].solution, valid[i]);
+		exit(1);
+	}
 	for (i = 0; i < TaxiCount; ++i)
-		printf("Taxi(%4d): %4u^3 + %4u^3 == %4u^3 + %4u^3 == %10llu%s\n", i + 1, Taxi[i].a, Taxi[i].b, Taxi[i].c, Taxi[i].d, Taxi[i].solution,
-		    i > 0 && Taxi[i].solution == Taxi[i - 1].solution ? "(!)" : "");
-		
+		printf("Taxi(%4d): %4u^3 + %4u^3 == %4u^3 + %4u^3 == %10llu%s\n", i + 1,
+			Taxi[i].a, Taxi[i].b, Taxi[i].c, Taxi[i].d, Taxi[i].solution,
+			i > 0 && Taxi[i].solution == Taxi[i - 1].solution ? "(!)" : "");
 
 	return 0;
 }
