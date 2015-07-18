@@ -3,8 +3,8 @@
 #include <stdlib.h>
 #include <unistd.h>
 
-#define T_COUNT 4 // thread count
-#define LIMIT 300
+#define T_COUNT 8 // thread count
+#define LIMIT 1600
 
 typedef struct taxi_t {
 	unsigned int a;
