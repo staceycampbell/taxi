@@ -1,3 +1,4 @@
+CC := clang
 CFLAGS := -mtune=native -O3 -Wall
 LDLIBS := -lpthread
 

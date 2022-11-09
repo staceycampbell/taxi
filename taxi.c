@@ -1,18 +1,20 @@
 #include <stdio.h>
+#include <stdint.h>
+#include <inttypes.h>
 #include <pthread.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <math.h>
 
-#define T_COUNT 10 // thread count
-#define LIMIT 500
+#define T_COUNT 8 // thread count
+#define LIMIT 1024
 
 typedef struct taxi_t {
-	unsigned int a;
-	unsigned int b;
-	unsigned int c;
-	unsigned int d;
-	unsigned long long solution;
+	uint32_t a;
+	uint32_t b;
+	uint32_t c;
+	uint32_t d;
+	uint64_t solution;
 } taxi_t;
 
 static pthread_mutex_t Mutex = PTHREAD_MUTEX_INITIALIZER;
@@ -21,7 +23,7 @@ static taxi_t *Taxi;
 static int TaxiCount;
 static int TaxiSize;
 
-static unsigned int Limit = LIMIT;
+static uint32_t Limit = LIMIT;
 
 static int
 CmpTaxi(const void *p1, const void *p2)
@@ -34,22 +36,34 @@ CmpTaxi(const void *p1, const void *p2)
 	return (t1->solution > t2->solution) - (t1->solution < t2->solution);
 }
 
-static inline unsigned long long
-Cubed(unsigned long long a)
+static uint64_t *CubeTable;
+
+static inline uint64_t
+Cubed(uint64_t a)
 {
 	return a * a * a;
 }
 
-static int
-Check(unsigned int a, unsigned int b, unsigned int c, unsigned int d)
+static void
+InitCubed(uint32_t limit)
 {
-	unsigned int good;
-	unsigned long long a_cubed, b_cubed, c_cubed, d_cubed, x, y;
+	uint64_t a;
 
-	a_cubed = Cubed(a);
-	b_cubed = Cubed(b);
-	c_cubed = Cubed(c);
-	d_cubed = Cubed(d);
+	CubeTable = (uint64_t *)malloc(limit * sizeof(uint64_t));
+	for (a = 0; a < limit; ++a)
+		CubeTable[a] = Cubed(a);
+}
+
+static inline int
+Check(uint32_t a, uint32_t b, uint32_t c, uint32_t d)
+{
+	uint32_t good;
+	uint64_t a_cubed, b_cubed, c_cubed, d_cubed, x, y;
+
+	a_cubed = CubeTable[a];
+	b_cubed = CubeTable[b];
+	c_cubed = CubeTable[c];
+	d_cubed = CubeTable[d];
 
 	x = a_cubed + b_cubed;
 	y = c_cubed + d_cubed;
@@ -78,10 +92,10 @@ Check(unsigned int a, unsigned int b, unsigned int c, unsigned int d)
 static void *
 LoopThread(void *arg)
 {
-	unsigned int a, b, c, d, a_start, c_start;
-	unsigned int limit;
+	uint32_t a, b, c, d, a_start, c_start;
+	uint32_t limit;
 
-	a = *(unsigned int *)arg;
+	a = *(uint32_t *)arg;
 	a_start = a + 1;
 	c_start = a + 2;
 	limit = Limit;
@@ -95,11 +109,11 @@ LoopThread(void *arg)
 int
 main(int argc, char *argv[])
 {
-	unsigned int i, a, t, taxicabcount;
-	unsigned int check_size;
-	unsigned int arg[T_COUNT];
+	uint32_t i, a, t, taxicabcount;
+	uint32_t check_size;
+	uint32_t arg[T_COUNT];
 	pthread_t loop_thread[T_COUNT];
-	static const unsigned long long valid[] = {
+	static const uint64_t valid[] = {
 		1729, 4104, 13832, 20683, 32832, 39312, 40033, 46683, 64232, 65728, 110656, 110808,
 		134379, 149389, 165464, 171288, 195841, 216027, 216125, 262656, 314496, 320264, 327763,
 		373464, 402597, 439101, 443889, 513000, 513856, 515375, 525824, 558441, 593047, 684019,
@@ -120,7 +134,9 @@ main(int argc, char *argv[])
 		exit(1);
 	}
 
+
 	Limit = (taxicabcount * 3) / 2 + 50;
+	InitCubed(Limit);
 
 	pthread_mutex_init(&Mutex, NULL);
 
@@ -154,11 +170,11 @@ main(int argc, char *argv[])
 		++i;
 	if (i < check_size)
 	{
-		fprintf(stderr, "Sequence bad at position %u (you have %llu, should be %llu)\n", i, Taxi[i].solution, valid[i]);
+		fprintf(stderr, "Sequence bad at position %u (you have %" PRIu64 ", should be %" PRIu64 ")\n", i, Taxi[i].solution, valid[i]);
 		exit(1);
 	}
 	for (i = 0; i < taxicabcount; ++i)
-		printf("Taxi(%4d): %4u^3 + %4u^3 == %4u^3 + %4u^3 == %10llu%s\n", i + 1,
+		printf("Taxi(%4d): %4u^3 + %4u^3 == %4u^3 + %4u^3 == %10" PRIu64 "%s\n", i + 1,
 			Taxi[i].a, Taxi[i].b, Taxi[i].c, Taxi[i].d, Taxi[i].solution,
 			i > 0 && Taxi[i].solution == Taxi[i - 1].solution ? "(!)" : "");
 
